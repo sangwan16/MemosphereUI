@@ -1,0 +1,10 @@
+npm create-vite@latest . --template react
+
+Prompt: keep In mind to keep the styles extemely simple for now we will do proper styling later. focus on the logic building first.
+Ok so first I will proceed with the signup/login setup. I am using jwt for auth and some expiry for both access and expiry token
+
+Dependency: npm.cmd install axios react-router-dom
+
+Prompt: In the topbar beside the home icon add the option to create a post and after that a dropdown to explore one of the project's categories which u already know:
+Poetry, Movies,Legends, Books and Miscelleneous. This dropdown will only appear when the user is not on the home page because on the home we will already show the explore button which when clicked will lead the user to their respective feeds. I will discuss the feeds logic later. Just do this much for now.
+
