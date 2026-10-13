@@ -29,7 +29,7 @@ export function Home() {
                     variant="contained"
                     size="large"
                     endIcon={<ArrowForwardIcon />}
-                    onClick={() => navigate('/feed')}
+                    onClick={() => navigate('/all_posts')}
                     sx={{
                         px: 4,
                         py: 1.5,

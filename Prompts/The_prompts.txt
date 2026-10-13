@@ -8,3 +8,20 @@ Dependency: npm.cmd install axios react-router-dom
 Prompt: In the topbar beside the home icon add the option to create a post and after that a dropdown to explore one of the project's categories which u already know:
 Poetry, Movies,Legends, Books and Miscelleneous. This dropdown will only appear when the user is not on the home page because on the home we will already show the explore button which when clicked will lead the user to their respective feeds. I will discuss the feeds logic later. Just do this much for now.
 
+Prompt: The homepage will contain a nice animated artistic background and a button which will take the user to their feed. I will do the background part later. For now add the button. Button should look nice and artistic and position should be such that a background is there
+
+Prompt: ok now u know the schema of the post now let's create the component for creating the post.
+
+Prompt: what is the standard way to store endpoint url's in the frontend ?
+
+Prompt: I would like to add an email verification step before logging in the user
+
+Prompt: before anything i would like to know how to avoid if a user explicity enters /home in the url in which there is no check if the user is logged in. is it standard or should we add some sort of check to avoid user to enter without login /register
+
+Prompt: ok let's proceed with the email verification step first. So, the flow would be user registers. Then app would wait for email verification. after the verfication tokens would be issued and stored in localstorage. The user will routed to /home
+
+Prompt: please don't do bulk changes do it step by step and let me know what is happening
+
+Prompt: I could see there is no option to comment on the post yet
+
+Prompt: ok I think there should be a way for the user to define their their usernames

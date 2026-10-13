@@ -30,3 +30,7 @@ If you are developing a production application, we recommend enabling type-aware
 ```
 
 See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+
+## Image uploads
+
+Create an unsigned image upload preset in Cloudinary and configure the frontend environment using `.env.example` as a template. Restrict the preset to image uploads and set appropriate file-size and format limits in Cloudinary. The frontend uploads selected images and sends their resulting secure URLs when creating a post. Do not put a Cloudinary API secret in frontend configuration.

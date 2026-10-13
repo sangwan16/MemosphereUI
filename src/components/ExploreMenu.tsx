@@ -1,19 +1,22 @@
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import { Button, Menu, MenuItem } from '@mui/material'
-import { useState, type MouseEvent } from 'react'
+import { useEffect, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-
-const categories = [
-  { label: 'Poetry', slug: 'poetry' },
-  { label: 'Movies', slug: 'movies' },
-  { label: 'Legends', slug: 'legends' },
-  { label: 'Books', slug: 'books' },
-  { label: 'Miscellaneous', slug: 'miscellaneous' },
-]
+import { listCategories, type Category } from '../api/posts'
 
 export function ExploreMenu() {
   const navigate = useNavigate()
   const [anchorElement, setAnchorElement] = useState<null | HTMLElement>(null)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true)
+  const [categoryLoadFailed, setCategoryLoadFailed] = useState(false)
+
+  useEffect(() => {
+    listCategories()
+      .then(setCategories)
+      .catch(() => setCategoryLoadFailed(true))
+      .finally(() => setIsLoadingCategories(false))
+  }, [])
 
   function openMenu(event: MouseEvent<HTMLElement>) {
     setAnchorElement(event.currentTarget)
@@ -35,15 +38,20 @@ export function ExploreMenu() {
         Explore
       </Button>
       <Menu anchorEl={anchorElement} open={Boolean(anchorElement)} onClose={closeMenu}>
+        {isLoadingCategories && <MenuItem disabled>Loading categories...</MenuItem>}
+        {categoryLoadFailed && <MenuItem disabled>Could not load categories</MenuItem>}
+        {!isLoadingCategories && !categoryLoadFailed && categories.length === 0 && (
+          <MenuItem disabled>No categories available</MenuItem>
+        )}
         {categories.map((category) => (
           <MenuItem
-            key={category.slug}
+            key={category.id}
             onClick={() => {
               closeMenu()
               navigate(`/feed/${category.slug}`)
             }}
           >
-            {category.label}
+            {category.name}
           </MenuItem>
         ))}
       </Menu>
