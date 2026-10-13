@@ -1,10 +1,11 @@
 import axios from 'axios'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import { Alert, Avatar, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, Stack, Switch, TextField, Tooltip, Typography } from '@mui/material'
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { getCurrentUser, updateAccountPrivacy, updateUsername, type CurrentUser } from '../api/auth'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { clearTokens, getCurrentUser, updateAccountPrivacy, updateUsername, type CurrentUser } from '../api/auth'
 import {
 	getMyProfileStats,
 	listMyFollowers,
@@ -18,6 +19,7 @@ import { PostCard } from './Allposts'
 
 export function ProfilePage() {
 	const { section } = useParams()
+	const navigate = useNavigate()
 	const [user, setUser] = useState<CurrentUser | null>(null)
 	const [stats, setStats] = useState<ProfileStats | null>(null)
 	const [people, setPeople] = useState<ProfileUser[]>([])
@@ -143,6 +145,12 @@ export function ProfilePage() {
 		}
 	}
 
+	function handleLogout() {
+		clearTokens()
+		setIsPrivacySettingsOpen(false)
+		navigate('/auth', { replace: true })
+	}
+
 	if (isLoading) {
 		return <Box sx={{ display: 'grid', placeItems: 'center', py: 8 }}><CircularProgress aria-label="Loading profile" /></Box>
 	}
@@ -163,10 +171,16 @@ export function ProfilePage() {
 						{!isSectionLoading && (section === 'followers' || section === 'following') && !sectionError && (
 							<Stack spacing={1}>
 								{people.length === 0 ? <Typography color="text.secondary">No users to show yet.</Typography> : people.map((person) => (
-									<Stack key={person.id} direction="row" spacing={1.5} sx={{ alignItems: 'center', py: 1 }}>
-										<Avatar>{(person.username || 'M').charAt(0).toUpperCase()}</Avatar>
-										<Typography>{person.username || `Member #${person.id}`}</Typography>
-									</Stack>
+									<Button
+										key={person.id}
+										component={Link}
+										to={`/users/${person.id}`}
+										startIcon={<Avatar>{(person.username || 'M').charAt(0).toUpperCase()}</Avatar>}
+										color="inherit"
+										sx={{ alignSelf: 'flex-start', textTransform: 'none' }}
+									>
+										{person.username || `Member #${person.id}`}
+									</Button>
 								))}
 							</Stack>
 						)}
@@ -182,8 +196,8 @@ export function ProfilePage() {
 					<>
 						<Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
 							<Typography component="h1" variant="h4">Profile</Typography>
-							<Tooltip title="Privacy settings">
-								<IconButton aria-label="Privacy settings" onClick={() => setIsPrivacySettingsOpen(true)}>
+							<Tooltip title="Profile settings">
+								<IconButton aria-label="Profile settings" onClick={() => setIsPrivacySettingsOpen(true)}>
 									<SettingsOutlinedIcon />
 								</IconButton>
 							</Tooltip>
@@ -265,7 +279,7 @@ export function ProfilePage() {
 					</Box>
 				)}
 				<Dialog open={isPrivacySettingsOpen} onClose={() => setIsPrivacySettingsOpen(false)}>
-					<DialogTitle>Privacy settings</DialogTitle>
+					<DialogTitle>Profile settings</DialogTitle>
 					<DialogContent>
 						<Stack spacing={1} sx={{ pt: 1 }}>
 							<FormControlLabel
@@ -284,7 +298,10 @@ export function ProfilePage() {
 							{privacyError && <Alert severity="error">{privacyError}</Alert>}
 						</Stack>
 					</DialogContent>
-					<DialogActions>
+					<DialogActions sx={{ justifyContent: 'space-between' }}>
+						<Button color="error" startIcon={<LogoutOutlinedIcon />} onClick={handleLogout}>
+							Log out
+						</Button>
 						<Button onClick={() => setIsPrivacySettingsOpen(false)}>Close</Button>
 					</DialogActions>
 				</Dialog>

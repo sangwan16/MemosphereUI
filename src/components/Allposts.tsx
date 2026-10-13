@@ -15,6 +15,7 @@ import {
 	Typography,
 } from '@mui/material'
 import { useEffect, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { createPostComment, listPostComments, listPosts, type Post, type PostComment } from '../api/posts'
 
 function formatPostDate(value: string) {
@@ -88,18 +89,31 @@ export function PostCard({ post }: { post: Post }) {
 		>
 			<CardContent sx={{ p: { xs: 2, sm: 3 }, '&:last-child': { pb: { xs: 2, sm: 3 } } }}>
 				<Stack spacing={2}>
-					  <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+					  <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', justifyContent: 'space-between', width: '100%', minWidth: 0 }}>
+						<Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
 						<Avatar sx={{ bgcolor: 'primary.main', width: 40, height: 40 }}>
 							{author.charAt(0).toUpperCase()}
 						</Avatar>
 						<Box sx={{ minWidth: 0 }}>
-							<Typography variant="subtitle2" sx={{ overflowWrap: 'anywhere' }}>
+							<Typography
+								component={Link}
+								to={`/users/${post.author_id}`}
+								variant="subtitle2"
+								sx={{ color: 'text.primary', textDecoration: 'none', overflowWrap: 'anywhere', '&:hover': { textDecoration: 'underline' } }}
+							>
 								{author}
 							</Typography>
-							<Typography component="time" dateTime={post.created_at} variant="caption" color="text.secondary">
-								{formatPostDate(post.created_at)}
-							</Typography>
 						</Box>
+						</Stack>
+						<Typography
+							component="time"
+							dateTime={post.created_at}
+							variant="caption"
+							color="text.secondary"
+							sx={{ maxWidth: '48%', textAlign: 'right', overflowWrap: 'anywhere' }}
+						>
+							{formatPostDate(post.created_at)}
+						</Typography>
 					</Stack>
 
 					<Box>

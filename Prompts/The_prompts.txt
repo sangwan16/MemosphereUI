@@ -25,3 +25,7 @@ Prompt: please don't do bulk changes do it step by step and let me know what is 
 Prompt: I could see there is no option to comment on the post yet
 
 Prompt: ok I think there should be a way for the user to define their their usernames
+
+Prompt: in the explore dropdown when a category is chosen it should filter the user's feed and show only posts with the choosen category.
+
+Prompt: Give an option to logout in the profile settings

@@ -69,6 +69,18 @@ export type ProfileUser = {
   username: string | null
 }
 
+export type UserProfile = {
+  id: number
+  username: string | null
+  is_public: boolean
+  is_self: boolean
+  is_following: boolean
+  can_view_posts: boolean
+  posts_count: number
+  followers_count: number
+  following_count: number
+}
+
 type CloudinaryUploadResponse = {
   secure_url: string
 }
@@ -134,4 +146,22 @@ export async function listMyFollowing(): Promise<ProfileUser[]> {
 export async function listMyPosts(): Promise<Post[]> {
   const response = await api.get<Post[]>('/posts/me')
   return response.data
+}
+
+export async function getUserProfile(userId: number): Promise<UserProfile> {
+  const response = await api.get<UserProfile>(`/social/users/${userId}`)
+  return response.data
+}
+
+export async function listUserPosts(userId: number): Promise<Post[]> {
+  const response = await api.get<Post[]>(`/posts/users/${userId}`)
+  return response.data
+}
+
+export async function followUser(userId: number): Promise<void> {
+  await api.post('/social/follow', { user_id: userId })
+}
+
+export async function unfollowUser(userId: number): Promise<void> {
+  await api.delete(`/social/follow/${userId}`)
 }
