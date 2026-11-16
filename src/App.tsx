@@ -1,10 +1,12 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthPage } from './components/AuthPage'
 import { Allposts } from './components/Allposts'
+import { AboutPage } from './components/AboutPage'
 import { CategoryFeed } from './components/CategoryFeed'
 import { CreatePost } from './components/CreatePost'
 import './App.css'
 import { Home } from './components/Home'
+import { NotificationsPage } from './components/NotificationsPage'
 import { PlaceholderPage } from './components/PlaceholderPage'
 import { ProfilePage } from './components/ProfilePage'
 import { RequireAuth } from './components/RequireAuth'
@@ -27,8 +29,8 @@ function App() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/profile/:section" element={<ProfilePage />} />
         <Route path="/users/:userId" element={<UserProfilePage />} />
-        <Route path="/about" element={<PlaceholderPage title="About" />} />
-        <Route path="/notifications" element={<PlaceholderPage title="Notifications" />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/auth" replace />} />
     </Routes>

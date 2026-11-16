@@ -1,5 +1,11 @@
 import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined'
+import AddPhotoAlternateOutlinedIcon from '@mui/icons-material/AddPhotoAlternateOutlined'
 import CommentOutlinedIcon from '@mui/icons-material/CommentOutlined'
+import ClearIcon from '@mui/icons-material/Clear'
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+import ExpandLessIcon from '@mui/icons-material/ExpandLess'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined'
 import SendIcon from '@mui/icons-material/Send'
 import {
 	Alert,
@@ -10,13 +16,24 @@ import {
 	CardContent,
 	Collapse,
 	CircularProgress,
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogTitle,
+	IconButton,
 	Stack,
 	TextField,
+	Tooltip,
 	Typography,
+	useMediaQuery,
 } from '@mui/material'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { createPostComment, listPostComments, listPosts, type Post, type PostComment } from '../api/posts'
+import { getCurrentUser } from '../api/auth'
+import { createPostComment, listPostComments, listPosts, updatePost, uploadPostImage, type Post, type PostComment } from '../api/posts'
+
+const MAX_POST_IMAGE_COUNT = 10
+const MAX_POST_IMAGE_SIZE_BYTES = 10 * 1024 * 1024
 
 function formatPostDate(value: string) {
 	return new Intl.DateTimeFormat(undefined, {
@@ -25,9 +42,25 @@ function formatPostDate(value: string) {
 	}).format(new Date(value))
 }
 
-export function PostCard({ post }: { post: Post }) {
+export function PostCard({ post, canEdit = false }: { post: Post; canEdit?: boolean }) {
 	console.log('Rendering PostCard for post:', post) // Debugging log
 	const author = post.author_username || 'Memosphere member'
+	const [displayTitle, setDisplayTitle] = useState(post.title)
+	const [displayContent, setDisplayContent] = useState(post.content)
+	const [displayImageUrls, setDisplayImageUrls] = useState(post.image_urls)
+	const isNarrowScreen = useMediaQuery('(max-width: 599px)')
+	const isMediumScreen = useMediaQuery('(min-width: 600px) and (max-width: 899px)')
+	const contentPreviewLimit = isNarrowScreen ? 170 : isMediumScreen ? 400 : 640
+	const canExpandContent = displayContent.length > contentPreviewLimit
+	const [imagesOpen, setImagesOpen] = useState(false)
+	const [contentExpanded, setContentExpanded] = useState(false)
+	const [isEditOpen, setIsEditOpen] = useState(false)
+	const [editTitle, setEditTitle] = useState(post.title)
+	const [editContent, setEditContent] = useState(post.content)
+	const [editImageUrls, setEditImageUrls] = useState(post.image_urls)
+	const [isSavingEdit, setIsSavingEdit] = useState(false)
+	const [isUploadingEditImages, setIsUploadingEditImages] = useState(false)
+	const [editError, setEditError] = useState('')
 	const [comments, setComments] = useState<PostComment[]>([])
 	const [commentsOpen, setCommentsOpen] = useState(false)
 	const [commentsLoaded, setCommentsLoaded] = useState(false)
@@ -81,11 +114,104 @@ export function PostCard({ post }: { post: Post }) {
 		}
 	}
 
+	function openEditDialog() {
+		setEditTitle(displayTitle)
+		setEditContent(displayContent)
+		setEditImageUrls(displayImageUrls)
+		setEditError('')
+		setIsEditOpen(true)
+	}
+
+	function removeEditImage(index: number) {
+		setEditImageUrls((currentUrls) => currentUrls.filter((_, urlIndex) => urlIndex !== index))
+	}
+
+	async function handleEditImageSelection(event: React.ChangeEvent<HTMLInputElement>) {
+		const files = Array.from(event.target.files ?? [])
+		event.target.value = ''
+		if (files.length === 0) return
+
+		const availableSlots = MAX_POST_IMAGE_COUNT - editImageUrls.length
+		const selectedFiles = files.slice(0, availableSlots)
+		const rejectedCount = files.length - selectedFiles.length
+		const validFiles = selectedFiles.filter(
+			(file) => file.type.startsWith('image/') && file.size <= MAX_POST_IMAGE_SIZE_BYTES,
+		)
+		const invalidCount = selectedFiles.length - validFiles.length
+
+		if (validFiles.length === 0) {
+			setEditError(
+				availableSlots <= 0
+					? `A post can have up to ${MAX_POST_IMAGE_COUNT} images.`
+					: 'Choose image files that are 10 MB or smaller.',
+			)
+			return
+		}
+
+		setEditError('')
+		setIsUploadingEditImages(true)
+		try {
+			const results = await Promise.allSettled(validFiles.map(uploadPostImage))
+			const uploadedUrls = results.flatMap((result) =>
+				result.status === 'fulfilled' ? [result.value] : [],
+			)
+			setEditImageUrls((currentUrls) => [...currentUrls, ...uploadedUrls].slice(0, MAX_POST_IMAGE_COUNT))
+
+			const failedCount = results.length - uploadedUrls.length
+			const messages = [
+				failedCount > 0 ? `${failedCount} image upload(s) failed.` : '',
+				invalidCount > 0 ? `${invalidCount} file(s) were not valid images under 10 MB.` : '',
+				rejectedCount > 0 ? `Only ${MAX_POST_IMAGE_COUNT} images can be added to a post.` : '',
+			].filter(Boolean)
+			if (messages.length > 0) setEditError(messages.join(' '))
+		} finally {
+			setIsUploadingEditImages(false)
+		}
+	}
+
+	async function handleEditSubmit(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault()
+		if (isSavingEdit || isUploadingEditImages) return
+
+		const title = editTitle.trim()
+		const content = editContent.trim()
+		if (!title || !content) return
+
+		setIsSavingEdit(true)
+		setEditError('')
+		try {
+			const updatedPost = await updatePost(post.id, {
+				title,
+				content,
+				image_urls: editImageUrls,
+			})
+			setDisplayTitle(updatedPost.title)
+			setDisplayContent(updatedPost.content)
+			setDisplayImageUrls(updatedPost.image_urls)
+			setIsEditOpen(false)
+		} catch {
+			setEditError('The post could not be updated. Please try again.')
+		} finally {
+			setIsSavingEdit(false)
+		}
+	}
+
 	return (
 		<Card
 			component="article"
 			variant="outlined"
-			sx={{ borderRadius: 1, borderColor: 'divider' }}
+			sx={{
+				borderRadius: 1,
+				my: 0.5,
+				borderColor: 'rgba(31, 41, 51, 0.1)',
+				bgcolor: 'background.paper',
+				boxShadow: '0 6px 20px rgba(31, 41, 51, 0.11)',
+				transition: 'box-shadow 180ms ease, border-color 180ms ease',
+				'&:hover': {
+					borderColor: 'rgba(23, 107, 135, 0.28)',
+					boxShadow: '0 10px 26px rgba(31, 41, 51, 0.15)',
+				},
+			}}
 		>
 			<CardContent sx={{ p: { xs: 2, sm: 3 }, '&:last-child': { pb: { xs: 2, sm: 3 } } }}>
 				<Stack spacing={2}>
@@ -105,54 +231,113 @@ export function PostCard({ post }: { post: Post }) {
 							</Typography>
 						</Box>
 						</Stack>
-						<Typography
-							component="time"
-							dateTime={post.created_at}
-							variant="caption"
-							color="text.secondary"
-							sx={{ maxWidth: '48%', textAlign: 'right', overflowWrap: 'anywhere' }}
-						>
-							{formatPostDate(post.created_at)}
-						</Typography>
+						<Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexShrink: 0 }}>
+							<Typography
+								component="time"
+								dateTime={post.created_at}
+								variant="caption"
+								color="text.secondary"
+								sx={{ maxWidth: { xs: 120, sm: 180 }, textAlign: 'right', overflowWrap: 'anywhere' }}
+							>
+								{formatPostDate(post.created_at)}
+							</Typography>
+							{canEdit && (
+								<Tooltip title="Edit post">
+									<IconButton aria-label={`Edit post: ${displayTitle}`} size="small" onClick={openEditDialog}>
+										<EditOutlinedIcon fontSize="small" />
+									</IconButton>
+								</Tooltip>
+							)}
+						</Stack>
 					</Stack>
 
 					<Box>
 						<Typography component="h2" variant="h6" sx={{ overflowWrap: 'anywhere' }}>
-							{post.title}
+							{displayTitle}
 						</Typography>
 						<Typography
+							id={`post-${post.id}-content`}
 							color="text.primary"
-							sx={{ mt: 1, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
-						>
-							{post.content}
-						</Typography>
-					</Box>
-
-					{post.image_urls.length > 0 && (
-						<Box
 							sx={{
-								display: 'grid',
-								gridTemplateColumns: post.image_urls.length === 1 ? '1fr' : 'repeat(2, minmax(0, 1fr))',
-								gap: 1,
+								mt: 1,
+								whiteSpace: 'pre-wrap',
+								overflowWrap: 'anywhere',
+								...(canExpandContent && !contentExpanded
+									? {
+										display: '-webkit-box',
+										WebkitBoxOrient: 'vertical',
+										WebkitLineClamp: 5,
+										overflow: 'hidden',
+									}
+									: {}),
 							}}
 						>
-							{post.image_urls.map((url, index) => (
+							{displayContent}
+						</Typography>
+						{canExpandContent && (
+							<Button
+								size="small"
+								endIcon={contentExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+								aria-expanded={contentExpanded}
+								aria-controls={`post-${post.id}-content`}
+								onClick={() => setContentExpanded((expanded) => !expanded)}
+								sx={{ alignSelf: 'flex-start', minWidth: 0, mt: -0.75, px: 0.5, textTransform: 'none' }}
+							>
+								{contentExpanded ? 'Show less' : 'Read more'}
+							</Button>
+						)}
+					</Box>
+
+					{displayImageUrls.length > 0 && (
+						<>
+							<Button
+								startIcon={<ImageOutlinedIcon />}
+								endIcon={imagesOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+								aria-expanded={imagesOpen}
+								aria-controls={`post-${post.id}-images`}
+								onClick={() => setImagesOpen((open) => !open)}
+								sx={{ alignSelf: 'flex-start', textTransform: 'none' }}
+							>
+								{imagesOpen ? 'Hide images' : `Show images (${displayImageUrls.length})`}
+							</Button>
+							<Collapse id={`post-${post.id}-images`} in={imagesOpen} unmountOnExit sx={{ width: '100%' }}>
 								<Box
-									key={`${post.id}-${url}`}
-									component="img"
-									src={url}
-									alt={`Image ${index + 1} in ${post.title}`}
-									loading="lazy"
+									role="region"
+									aria-label={`Images in ${post.title}`}
 									sx={{
-										display: 'block',
+										display: 'flex',
 										width: '100%',
-										aspectRatio: '4 / 3',
-										objectFit: 'cover',
-										borderRadius: 1,
+										minWidth: 0,
+										overflowX: 'auto',
+										overflowY: 'hidden',
+										gap: 1.5,
+										pb: 1,
+										overscrollBehaviorX: 'contain',
+										scrollSnapType: 'x mandatory',
 									}}
-								/>
-							))}
-						</Box>
+								>
+									{displayImageUrls.map((url, index) => (
+										<Box
+											key={`${post.id}-${url}`}
+											component="img"
+											src={url}
+											alt={`Image ${index + 1} in ${post.title}`}
+											loading="lazy"
+											sx={{
+												display: 'block',
+												flex: '0 0 min(76vw, 280px)',
+												width: 'min(76vw, 280px)',
+												aspectRatio: '4 / 3',
+												maxWidth: '100%',
+												objectFit: 'cover',
+												borderRadius: 1,
+												scrollSnapAlign: 'start',
+											}}
+										/>
+									))}
+								</Box>
+							</Collapse>
+						</>
 					)}
 
 					<Button
@@ -221,18 +406,91 @@ export function PostCard({ post }: { post: Post }) {
 					</Collapse>
 				</Stack>
 			</CardContent>
+			<Dialog open={isEditOpen} onClose={() => !isSavingEdit && setIsEditOpen(false)} fullWidth maxWidth="sm">
+				<Box component="form" onSubmit={handleEditSubmit}>
+					<DialogTitle>Edit post</DialogTitle>
+					<DialogContent>
+						<Stack spacing={2} sx={{ pt: 1 }}>
+							{editError && <Alert severity="error">{editError}</Alert>}
+							<TextField
+								label="Title"
+								value={editTitle}
+								onChange={(event) => setEditTitle(event.target.value)}
+								slotProps={{ htmlInput: { maxLength: 200 } }}
+								required
+								fullWidth
+								disabled={isSavingEdit}
+							/>
+							<TextField
+								label="Content"
+								value={editContent}
+								onChange={(event) => setEditContent(event.target.value)}
+								slotProps={{ htmlInput: { maxLength: 5000 } }}
+								required
+								fullWidth
+								multiline
+								minRows={6}
+								disabled={isSavingEdit}
+							/>
+											<Stack spacing={1}>
+												<Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+													<Typography variant="subtitle2">Images ({editImageUrls.length}/{MAX_POST_IMAGE_COUNT})</Typography>
+													<Button
+														component="label"
+														startIcon={<AddPhotoAlternateOutlinedIcon />}
+														disabled={isSavingEdit || isUploadingEditImages || editImageUrls.length >= MAX_POST_IMAGE_COUNT}
+													>
+														{isUploadingEditImages ? 'Uploading...' : 'Add images'}
+														<input hidden type="file" accept="image/*" multiple onChange={handleEditImageSelection} />
+													</Button>
+												</Stack>
+												{editImageUrls.map((url, index) => (
+													<Stack key={`${url}-${index}`} direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+														<Box component="img" src={url} alt={`Post image ${index + 1}`} sx={{ width: 96, height: 64, objectFit: 'cover', borderRadius: 1 }} />
+														<Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>Image {index + 1}</Typography>
+														<Tooltip title={`Remove image ${index + 1}`}>
+															<span>
+																<IconButton
+																	aria-label={`Remove image ${index + 1}`}
+																	disabled={isSavingEdit || isUploadingEditImages}
+																	onClick={() => removeEditImage(index)}
+																	color="error"
+																>
+																	<ClearIcon />
+																</IconButton>
+															</span>
+														</Tooltip>
+													</Stack>
+												))}
+											</Stack>
+						</Stack>
+					</DialogContent>
+					<DialogActions sx={{ px: 3, pb: 2 }}>
+						<Button onClick={() => setIsEditOpen(false)} disabled={isSavingEdit || isUploadingEditImages}>Cancel</Button>
+						<Button type="submit" variant="contained" disabled={isSavingEdit || isUploadingEditImages || !editTitle.trim() || !editContent.trim()}>
+							{isUploadingEditImages ? 'Uploading...' : isSavingEdit ? 'Saving...' : 'Save changes'}
+						</Button>
+					</DialogActions>
+				</Box>
+			</Dialog>
 		</Card>
 	)
 }
 
 export function Allposts() {
 	const [posts, setPosts] = useState<Post[]>([])
+	const [currentUserId, setCurrentUserId] = useState<number | null>(null)
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState(false)
 	const [reloadKey, setReloadKey] = useState(0)
 
 	useEffect(() => {
 		let isActive = true
+		getCurrentUser()
+			.then((currentUser) => {
+				if (isActive) setCurrentUserId(currentUser.id)
+			})
+			.catch(() => undefined)
 
 		setIsLoading(true)
 		setError(false)
@@ -285,8 +543,8 @@ export function Allposts() {
 	}
 
 	return (
-		<Stack component="section" aria-label="Posts" spacing={2} sx={{ width: '100%', maxWidth: 720, mx: 'auto' }}>
-			{posts.map((post) => <PostCard key={post.id} post={post} />)}
+		<Stack component="section" aria-label="Posts" spacing={2.5} sx={{ width: '100%', maxWidth: 960, mx: 'auto', px: { xs: 1.5, sm: 2 }, py: { xs: 2, sm: 3 } }}>
+			{posts.map((post) => <PostCard key={post.id} post={post} canEdit={post.author_id === currentUserId} />)}
 		</Stack>
 	)
 }

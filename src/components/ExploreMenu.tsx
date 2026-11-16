@@ -30,10 +30,26 @@ export function ExploreMenu() {
     <>
       <Button
         color="inherit"
+        variant="outlined"
         endIcon={<ExpandMoreIcon />}
         onClick={openMenu}
         aria-haspopup="menu"
         aria-expanded={anchorElement ? 'true' : undefined}
+        sx={{
+          minWidth: 0,
+          px: 1.75,
+          py: 0.75,
+          gap: 0.5,
+          borderRadius: 1,
+          borderColor: 'rgba(255, 255, 255, 0.42)',
+          bgcolor: 'rgba(255, 255, 255, 0.1)',
+          textTransform: 'none',
+          '& .MuiButton-endIcon': { ml: 0.5, mr: 0 },
+          '&:hover': {
+            borderColor: 'rgba(255, 255, 255, 0.7)',
+            bgcolor: 'rgba(255, 255, 255, 0.18)',
+          },
+        }}
       >
         Explore
       </Button>

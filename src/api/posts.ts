@@ -1,20 +1,5 @@
 import axios from 'axios'
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000',
-})
-
-api.interceptors.request.use((config) => {
-  const accessToken = localStorage.getItem(
-    import.meta.env.VITE_ACCESS_TOKEN_KEY ?? 'memosphere.accessToken',
-  )
-
-  if (accessToken) {
-    config.headers.Authorization = `Bearer ${accessToken}`
-  }
-
-  return config
-})
+import { api } from './auth'
 
 export type Category = {
   id: number
@@ -75,6 +60,7 @@ export type UserProfile = {
   is_public: boolean
   is_self: boolean
   is_following: boolean
+  has_pending_request: boolean
   can_view_posts: boolean
   posts_count: number
   followers_count: number
@@ -128,6 +114,11 @@ export async function createPost(payload: CreatePostPayload): Promise<void> {
   await api.post('/posts', payload)
 }
 
+export async function updatePost(postId: number, payload: Partial<CreatePostPayload>): Promise<Post> {
+  const response = await api.put<Post>(`/posts/${postId}`, payload)
+  return response.data
+}
+
 export async function getMyProfileStats(): Promise<ProfileStats> {
   const response = await api.get<ProfileStats>('/social/me')
   return response.data
@@ -136,6 +127,10 @@ export async function getMyProfileStats(): Promise<ProfileStats> {
 export async function listMyFollowers(): Promise<ProfileUser[]> {
   const response = await api.get<ProfileUser[]>('/social/me/followers')
   return response.data
+}
+
+export async function removeFollower(userId: number): Promise<void> {
+  await api.delete(`/social/me/followers/${userId}`)
 }
 
 export async function listMyFollowing(): Promise<ProfileUser[]> {
@@ -164,4 +159,35 @@ export async function followUser(userId: number): Promise<void> {
 
 export async function unfollowUser(userId: number): Promise<void> {
   await api.delete(`/social/follow/${userId}`)
+}
+
+export type NotificationItem = {
+  id: number
+  user_id: number
+  actor_id: number | null
+  type: string
+  reference_id: number | null
+  message: string
+  is_read: boolean
+  created_at: string
+}
+
+export async function listNotifications(): Promise<NotificationItem[]> {
+  const response = await api.get<NotificationItem[]>('/notifications')
+  return response.data
+}
+
+export async function getUnreadNotificationCount(): Promise<number> {
+  const response = await api.get<{ count: number }>('/notifications/unread-count')
+  return response.data.count
+}
+
+export async function respondToFollowRequest(
+  notificationId: number,
+  response: 'accept' | 'decline',
+): Promise<NotificationItem> {
+  const result = await api.post<NotificationItem>(
+    `/social/follow-requests/${notificationId}/${response}`,
+  )
+  return result.data
 }

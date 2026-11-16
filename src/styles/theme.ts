@@ -1,6 +1,16 @@
 import { createTheme } from '@mui/material/styles'
 
 export const appTheme = createTheme({
+  typography: {
+    fontSize: 15.5,
+    fontFamily: '"Source Sans 3 Variable", sans-serif',
+    h1: { fontFamily: '"Lora Variable", serif' },
+    h2: { fontFamily: '"Lora Variable", serif' },
+    h3: { fontFamily: '"Lora Variable", serif' },
+    h4: { fontFamily: '"Lora Variable", serif' },
+    h5: { fontFamily: '"Lora Variable", serif' },
+    h6: { fontFamily: '"Lora Variable", serif' },
+  },
   palette: {
     primary: {
       main: '#176B87',

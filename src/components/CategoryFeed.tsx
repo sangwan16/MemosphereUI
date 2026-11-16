@@ -2,6 +2,7 @@ import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined'
 import { Alert, Box, Button, CircularProgress, Stack, Typography } from '@mui/material'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { getCurrentUser } from '../api/auth'
 import { listCategories, listPosts, type Category, type Post } from '../api/posts'
 import { PostCard } from './Allposts'
 
@@ -9,12 +10,18 @@ export function CategoryFeed() {
 	const { category: categorySlug } = useParams()
 	const [category, setCategory] = useState<Category | null>(null)
 	const [posts, setPosts] = useState<Post[]>([])
+	const [currentUserId, setCurrentUserId] = useState<number | null>(null)
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState(false)
 	const [reloadKey, setReloadKey] = useState(0)
 
 	useEffect(() => {
 		let isActive = true
+		getCurrentUser()
+			.then((currentUser) => {
+				if (isActive) setCurrentUserId(currentUser.id)
+			})
+			.catch(() => undefined)
 		setIsLoading(true)
 		setError(false)
 
@@ -60,14 +67,14 @@ export function CategoryFeed() {
 	}
 
 	return (
-		<Stack component="main" spacing={2} sx={{ width: '100%', maxWidth: 720, mx: 'auto', p: { xs: 2, sm: 3 } }}>
+		<Stack component="main" spacing={2.5} sx={{ width: '100%', maxWidth: 960, mx: 'auto', px: { xs: 1.5, sm: 2 }, py: 2 }}>
 			{/* <Typography component="h1" variant="h4">{category?.name}</Typography> */}
 			{posts.length === 0 ? (
 				<Stack spacing={1} sx={{ py: 8, color: 'text.secondary', alignItems: 'center' }}>
 					<ArticleOutlinedIcon />
 					<Typography>No posts in this category yet.</Typography>
 				</Stack>
-			) : posts.map((post) => <PostCard key={post.id} post={post} />)}
+			) : posts.map((post) => <PostCard key={post.id} post={post} canEdit={post.author_id === currentUserId} />)}
 		</Stack>
 	)
 }

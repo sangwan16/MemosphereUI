@@ -1,4 +1,6 @@
-import { Alert, Box, Button, Stack, Tab, Tabs, TextField, Typography } from '@mui/material'
+import VisibilityIcon from '@mui/icons-material/Visibility'
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
+import { Alert, Box, Button, IconButton, InputAdornment, Stack, Tab, Tabs, TextField, Typography } from '@mui/material'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
@@ -11,6 +13,7 @@ export function AuthPage() {
     const [email, setEmail] = useState('')
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
+    const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState('')
     const [notice, setNotice] = useState('')
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -133,7 +136,31 @@ export function AuthPage() {
                         slotProps={{ htmlInput: { minLength: 3, maxLength: 30, pattern: '[A-Za-z0-9_]+' } }}
                     />
                 )}
-                <TextField label="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required fullWidth autoComplete={mode === 'login' ? 'current-password' : 'new-password'} slotProps={{ htmlInput: { minLength: 8, maxLength: 128 } }} />
+                <TextField
+                    label="Password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                    fullWidth
+                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                    slotProps={{
+                        htmlInput: { minLength: 8, maxLength: 128 },
+                        input: {
+                            endAdornment: (
+                                <InputAdornment position="end">
+                                    <IconButton
+                                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                        onClick={() => setShowPassword((visible) => !visible)}
+                                        edge="end"
+                                    >
+                                        {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                                    </IconButton>
+                                </InputAdornment>
+                            ),
+                        },
+                    }}
+                />
                 <Button type="submit" variant="contained" fullWidth disabled={isSubmitting || isVerifying}>
                     {isSubmitting ? 'Please wait...' : mode === 'login' ? 'Log in' : 'Create account'}
                 </Button>

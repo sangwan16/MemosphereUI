@@ -97,7 +97,7 @@ export function UserProfilePage() {
 
 	if (error || !profile) {
 		return (
-			<Stack component="main" spacing={2} sx={{ width: '100%', maxWidth: 720, mx: 'auto', p: { xs: 2, sm: 3 } }}>
+			<Stack component="main" spacing={2} sx={{ width: '100%', maxWidth: 960, mx: 'auto', p: { xs: 1.5, sm: 2 } }}>
 				<Button component={Link} to="/home" startIcon={<ArrowBackIcon />} sx={{ alignSelf: 'flex-start' }}>Home</Button>
 				<Alert severity="error">{error || 'This profile could not be loaded.'}</Alert>
 			</Stack>
@@ -107,7 +107,7 @@ export function UserProfilePage() {
 	const displayName = profile.username || `Member #${profile.id}`
 
 	return (
-		<Stack component="main" spacing={3} sx={{ width: '100%', maxWidth: 720, mx: 'auto', p: { xs: 2, sm: 3 } }}>
+		<Stack component="main" spacing={3} sx={{ width: '100%', maxWidth: 960, mx: 'auto', p: { xs: 1.5, sm: 2 } }}>
 			<Button component={Link} to="/home" startIcon={<ArrowBackIcon />} sx={{ alignSelf: 'flex-start' }}>Home</Button>
 			<Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
 				<Stack direction="row" spacing={2} sx={{ alignItems: 'center', minWidth: 0 }}>
@@ -126,10 +126,10 @@ export function UserProfilePage() {
 					<Button
 						variant={profile.is_following ? 'outlined' : 'contained'}
 						startIcon={profile.is_following ? <PersonRemoveOutlinedIcon /> : <PersonAddAlt1Icon />}
-						disabled={isFollowSaving}
+						disabled={isFollowSaving || profile.has_pending_request}
 						onClick={() => void handleFollowToggle()}
 					>
-						{isFollowSaving ? 'Saving...' : profile.is_following ? 'Unfollow' : 'Follow'}
+						{isFollowSaving ? 'Sending...' : profile.is_following ? 'Unfollow' : profile.has_pending_request ? 'Requested' : 'Follow'}
 					</Button>
 				)}
 			</Stack>
@@ -142,7 +142,7 @@ export function UserProfilePage() {
 			</Stack>
 
 			{!profile.can_view_posts ? (
-				<Alert severity="info">This account is private. Follow this user to see their posts.</Alert>
+				<Alert severity="info">Follow this user to see their posts.</Alert>
 			) : (
 				<Stack spacing={2}>
 					<Typography component="h2" variant="h5">Posts</Typography>
@@ -151,7 +151,7 @@ export function UserProfilePage() {
 					{!isPostsLoading && !postsError && posts.length === 0 && (
 						<Typography color="text.secondary">No posts yet.</Typography>
 					)}
-					{posts.map((post) => <PostCard key={post.id} post={post} />)}
+					{posts.map((post) => <PostCard key={post.id} post={post} canEdit={profile.is_self && post.author_id === profile.id} />)}
 				</Stack>
 			)}
 		</Stack>

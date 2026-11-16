@@ -1,6 +1,6 @@
  import axios from 'axios'
 
-const api = axios.create({
+export const api = axios.create({
 	baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000',
 })
 
@@ -27,6 +27,7 @@ export type CurrentUser = {
 }
 
 const verificationRequests = new Map<string, Promise<TokenResponse>>()
+let refreshRequest: Promise<string> | null = null
 
 function storeTokens(tokens: TokenResponse) {
 	localStorage.setItem(accessTokenKey, tokens.access_token)
@@ -83,6 +84,37 @@ export async function refreshAccessToken(): Promise<string> {
 	localStorage.setItem(accessTokenKey, response.data.access_token)
 	return response.data.access_token
 }
+
+api.interceptors.response.use(
+	(response) => response,
+	async (error: unknown) => {
+		if (!axios.isAxiosError(error) || error.response?.status !== 401 || !error.config) {
+			return Promise.reject(error)
+		}
+
+		const request = error.config as typeof error.config & { _retry?: boolean }
+		if (
+			request._retry ||
+			request.url?.endsWith('/auth/refresh') ||
+			request.url?.endsWith('/auth/token')
+		) {
+			return Promise.reject(error)
+		}
+
+		request._retry = true
+		try {
+			refreshRequest ??= refreshAccessToken().finally(() => {
+				refreshRequest = null
+			})
+			const accessToken = await refreshRequest
+			request.headers.set('Authorization', `Bearer ${accessToken}`)
+			return api(request)
+		} catch (refreshError) {
+			clearTokens()
+			return Promise.reject(refreshError)
+		}
+	},
+)
 
 export async function getCurrentUser(): Promise<CurrentUser> {
 	const response = await api.get<CurrentUser>('/auth/me')

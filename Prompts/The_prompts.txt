@@ -29,3 +29,9 @@ Prompt: ok I think there should be a way for the user to define their their user
 Prompt: in the explore dropdown when a category is chosen it should filter the user's feed and show only posts with the choosen category.
 
 Prompt: Give an option to logout in the profile settings
+
+Prompt: there are 2 details here : 
+1. By default on opeining a user's profile it shows all the posts of the user. It should happen only  for self account or if the account is followed by the user.
+2. Clicking the follow should send the user a message (shown under notification in toolbar) that a particular request is recieved from a user. which when accepted will make the user a follower.
+
+Prompt: would it be good to a small badge on the notification icon to show the number of new notifications?

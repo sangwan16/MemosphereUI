@@ -1,8 +1,10 @@
 import axios from 'axios'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined'
+import PersonRemoveOutlinedIcon from '@mui/icons-material/PersonRemoveOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import { Alert, Avatar, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, Stack, Switch, TextField, Tooltip, Typography } from '@mui/material'
+import type { AlertColor } from '@mui/material'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { clearTokens, getCurrentUser, updateAccountPrivacy, updateUsername, type CurrentUser } from '../api/auth'
@@ -11,11 +13,21 @@ import {
 	listMyFollowers,
 	listMyFollowing,
 	listMyPosts,
+	removeFollower,
 	type Post,
 	type ProfileStats,
 	type ProfileUser,
 } from '../api/posts'
+import { AppDialog } from './AppDialog'
 import { PostCard } from './Allposts'
+
+type ProfileDialogState = {
+	open: boolean
+	title: string
+	message: string
+	severity: AlertColor
+	confirmLabel?: string
+}
 
 export function ProfilePage() {
 	const { section } = useParams()
@@ -29,6 +41,14 @@ export function ProfilePage() {
 	const [isSectionLoading, setIsSectionLoading] = useState(false)
 	const [isSaving, setIsSaving] = useState(false)
 	const [isPrivacySaving, setIsPrivacySaving] = useState(false)
+	const [removingFollowerId, setRemovingFollowerId] = useState<number | null>(null)
+	const [followerToRemove, setFollowerToRemove] = useState<ProfileUser | null>(null)
+	const [dialog, setDialog] = useState<ProfileDialogState>({
+		open: false,
+		title: '',
+		message: '',
+		severity: 'info',
+	})
 	const [isEditing, setIsEditing] = useState(false)
 	const [isPrivacySettingsOpen, setIsPrivacySettingsOpen] = useState(false)
 	const [error, setError] = useState('')
@@ -131,6 +151,51 @@ export function ProfilePage() {
 		}
 	}
 
+	function handleRemoveFollower(person: ProfileUser) {
+		const name = person.username || `Member #${person.id}`
+		setFollowerToRemove(person)
+		setDialog({
+			open: true,
+			title: 'Remove follower?',
+			message: `Remove ${name} as a follower? They may lose access to posts limited to followers.`,
+			severity: 'warning',
+			confirmLabel: 'Remove',
+		})
+	}
+
+	function handleDialogClose() {
+		if (removingFollowerId !== null) return
+		setDialog((currentDialog) => ({ ...currentDialog, open: false }))
+		setFollowerToRemove(null)
+	}
+
+	async function confirmRemoveFollower() {
+		const person = followerToRemove
+		if (!person || removingFollowerId !== null) return
+
+		const name = person.username || `Member #${person.id}`
+		setRemovingFollowerId(person.id)
+		try {
+			await removeFollower(person.id)
+			setPeople((currentPeople) => currentPeople.filter((currentPerson) => currentPerson.id !== person.id))
+			setStats((currentStats) => currentStats ? {
+				...currentStats,
+				followers_count: Math.max(0, currentStats.followers_count - 1),
+			} : currentStats)
+			setDialog((currentDialog) => ({ ...currentDialog, open: false }))
+			setFollowerToRemove(null)
+		} catch {
+			setDialog({
+				open: true,
+				title: 'Could not remove follower',
+				message: `Could not remove ${name} as a follower. Please try again.`,
+				severity: 'error',
+			})
+		} finally {
+			setRemovingFollowerId(null)
+		}
+	}
+
 	async function handlePrivacyChange(isPublic: boolean) {
 		if (!user || isPrivacySaving) return
 
@@ -156,7 +221,7 @@ export function ProfilePage() {
 	}
 
 	return (
-		<Box component="main" sx={{ width: '100%', maxWidth: 520, mx: 'auto', p: { xs: 2, sm: 3 } }}>
+		<Box component="main" sx={{ width: '100%', maxWidth: section === 'posts' ? 960 : 520, mx: 'auto', p: { xs: 1.5, sm: section === 'posts' ? 2 : 3 } }}>
 			<Stack spacing={2}>
 				{section ? (
 					<>
@@ -171,23 +236,37 @@ export function ProfilePage() {
 						{!isSectionLoading && (section === 'followers' || section === 'following') && !sectionError && (
 							<Stack spacing={1}>
 								{people.length === 0 ? <Typography color="text.secondary">No users to show yet.</Typography> : people.map((person) => (
-									<Button
-										key={person.id}
-										component={Link}
-										to={`/users/${person.id}`}
-										startIcon={<Avatar>{(person.username || 'M').charAt(0).toUpperCase()}</Avatar>}
-										color="inherit"
-										sx={{ alignSelf: 'flex-start', textTransform: 'none' }}
-									>
-										{person.username || `Member #${person.id}`}
-									</Button>
+									<Stack key={person.id} direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+										<Button
+											component={Link}
+											to={`/users/${person.id}`}
+											startIcon={<Avatar>{(person.username || 'M').charAt(0).toUpperCase()}</Avatar>}
+											color="inherit"
+											sx={{ textTransform: 'none' }}
+										>
+											{person.username || `Member #${person.id}`}
+										</Button>
+										{section === 'followers' && (
+											<Tooltip title="Remove follower">
+												<span>
+													<IconButton
+														aria-label={`Remove ${person.username || `member ${person.id}`} as a follower`}
+														disabled={removingFollowerId !== null}
+															onClick={() => handleRemoveFollower(person)}
+													>
+														<PersonRemoveOutlinedIcon />
+													</IconButton>
+												</span>
+											</Tooltip>
+										)}
+									</Stack>
 								))}
 							</Stack>
 						)}
 						{!isSectionLoading && section === 'posts' && !sectionError && (
 							<Stack spacing={2}>
 								{posts.length === 0 ? <Typography color="text.secondary">No posts yet.</Typography> : posts.map((post) => (
-									<PostCard key={post.id} post={post} />
+									<PostCard key={post.id} post={post} canEdit={user?.id === post.author_id} />
 								))}
 							</Stack>
 						)}
@@ -305,6 +384,16 @@ export function ProfilePage() {
 						<Button onClick={() => setIsPrivacySettingsOpen(false)}>Close</Button>
 					</DialogActions>
 				</Dialog>
+				<AppDialog
+					open={dialog.open}
+					title={dialog.title}
+					message={dialog.message}
+					severity={dialog.severity}
+					onClose={handleDialogClose}
+					onConfirm={dialog.confirmLabel ? () => void confirmRemoveFollower() : undefined}
+					confirmLabel={dialog.confirmLabel}
+					isBusy={removingFollowerId !== null}
+				/>
 			</Stack>
 		</Box>
 	)
