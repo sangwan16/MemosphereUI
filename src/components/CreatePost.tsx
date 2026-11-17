@@ -175,9 +175,10 @@ export function CreatePost() {
 
         {error && <Alert severity="error">{error}</Alert>}
         <Alert severity="info">
-          AI requests send your title and content to OpenAI, which may retain API content in
-          abuse-monitoring logs for up to 30 days. Suggestions are only added to your post if you
-          choose to use them.
+          AI requests send your title and content to Google Gemini. With unpaid Gemini API quota,
+          Google may use prompts and responses to improve products and may have human reviewers
+          process them. Avoid sensitive, confidential, or personal information. Suggestions are
+          only added to your post if you choose to use them.
         </Alert>
 
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { sm: 'flex-start' } }}>
