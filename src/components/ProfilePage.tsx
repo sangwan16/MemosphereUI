@@ -282,24 +282,29 @@ export function ProfilePage() {
 							</Tooltip>
 						</Stack>
 						{stats ? (
-							<Stack direction="row" spacing={1} sx={{ justifyContent: 'space-between', py: 1 }}>
-								{[
-									{ label: 'Posts', count: stats.posts_count, to: '/profile/posts' },
-									{ label: 'Followers', count: stats.followers_count, to: '/profile/followers' },
-									{ label: 'Following', count: stats.following_count, to: '/profile/following' },
-								].map((item) => (
-									<Button
-										key={item.label}
-										component={Link}
-										to={item.to}
-										color="inherit"
-										sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, textTransform: 'none' }}
-									>
-										<Typography variant="h6">{item.count}</Typography>
-										<Typography variant="body2">{item.label}</Typography>
-									</Button>
-								))}
-							</Stack>
+							<>
+								<Stack direction="row" spacing={1} sx={{ justifyContent: 'space-between', py: 1 }}>
+									{[
+										{ label: 'Posts', count: stats.posts_count, to: '/profile/posts' },
+										{ label: 'Followers', count: stats.followers_count, to: '/profile/followers' },
+										{ label: 'Following', count: stats.following_count, to: '/profile/following' },
+									].map((item) => (
+										<Button
+											key={item.label}
+											component={Link}
+											to={item.to}
+											color="inherit"
+											sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, textTransform: 'none' }}
+										>
+											<Typography variant="h6">{item.count}</Typography>
+											<Typography variant="body2">{item.label}</Typography>
+										</Button>
+									))}
+								</Stack>
+								<Button component={Link} to="/profile/drafts" variant="outlined" sx={{ alignSelf: 'flex-start' }}>
+									View drafts
+								</Button>
+							</>
 						) : <CircularProgress size={24} aria-label="Loading profile statistics" />}
 						{sectionError && <Alert severity="error">{sectionError}</Alert>}
 					</>

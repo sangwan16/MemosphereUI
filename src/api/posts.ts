@@ -215,6 +215,16 @@ export async function listMyPosts(): Promise<Post[]> {
   return response.data
 }
 
+export async function listMyDrafts(): Promise<Post[]> {
+  const response = await api.get<Post[]>('/posts/me/drafts')
+  return response.data
+}
+
+export async function getMyDraft(postId: number): Promise<Post> {
+  const response = await api.get<Post>(`/posts/me/drafts/${postId}`)
+  return response.data
+}
+
 export async function getUserProfile(userId: number): Promise<UserProfile> {
   const response = await api.get<UserProfile>(`/social/users/${userId}`)
   return response.data

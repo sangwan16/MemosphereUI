@@ -19,11 +19,13 @@ import {
   Typography,
 } from '@mui/material'
 import { useEffect, useRef, useState, type ChangeEvent, type SyntheticEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   createPost,
   generateWritingSuggestion,
+  getMyDraft,
   listCategories,
+  updatePost,
   uploadPostImage,
   type Category,
   type CreatePostPayload,
@@ -36,6 +38,11 @@ const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024
 
 export function CreatePost() {
   const navigate = useNavigate()
+  const { draftId } = useParams()
+  const parsedDraftId = draftId ? Number(draftId) : undefined
+  const isInvalidDraftId = Boolean(
+    draftId && (!Number.isSafeInteger(parsedDraftId) || (parsedDraftId ?? 0) < 1),
+  )
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [excerpt, setExcerpt] = useState('')
@@ -43,7 +50,7 @@ export function CreatePost() {
   const [visibility, setVisibility] = useState<Visibility>('public')
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [categories, setCategories] = useState<Category[]>([])
-  const [isDraft] = useState(false)
+  const [isDraft, setIsDraft] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isUploadingImages, setIsUploadingImages] = useState(false)
   const [generatingTask, setGeneratingTask] = useState<WritingTask | null>(null)
@@ -54,8 +61,46 @@ export function CreatePost() {
   const formRef = useRef<HTMLFormElement>(null)
 
   useEffect(() => {
-    listCategories().then(setCategories).catch(() => setError('Could not load categories.'))
-  }, [])
+    let isActive = true
+    listCategories()
+      .then((loadedCategories) => {
+        if (isActive) setCategories(loadedCategories)
+      })
+      .catch(() => {
+        if (isActive) setError('Could not load categories.')
+      })
+
+    if (!draftId) {
+      return () => {
+        isActive = false
+      }
+    }
+
+    if (isInvalidDraftId || parsedDraftId === undefined) {
+      return () => {
+        isActive = false
+      }
+    }
+
+    getMyDraft(parsedDraftId)
+      .then((draft) => {
+        if (!isActive) return
+        setTitle(draft.title)
+        setContent(draft.content)
+        setExcerpt(draft.excerpt ?? '')
+        setCategoryId(draft.category_id?.toString() ?? '')
+        setVisibility(draft.visibility as Visibility)
+        setImageUrls(draft.image_urls)
+        setIsDraft(true)
+      })
+      .catch(() => {
+        if (isActive) setError('This draft could not be loaded.')
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [draftId, isInvalidDraftId, parsedDraftId])
 
   function removeImageUrl(index: number) {
     setImageUrls(imageUrls.filter((_, urlIndex) => urlIndex !== index))
@@ -109,7 +154,7 @@ export function CreatePost() {
     setIsSubmitting(true)
 
     try {
-      await createPost({
+      const payload: CreatePostPayload = {
         title: title.trim(),
         content: content.trim(),
         image_urls: imageUrls.map((url) => url.trim()).filter(Boolean),
@@ -117,10 +162,15 @@ export function CreatePost() {
         ...(categoryId ? { category_id: Number(categoryId) } : {}),
         visibility,
         is_draft: asDraft,
-      })
-      navigate('/home')
+      }
+      if (draftId) {
+        await updatePost(Number(draftId), payload)
+      } else {
+        await createPost(payload)
+      }
+      navigate(asDraft ? '/profile/drafts' : '/home')
     } catch {
-      setError('Could not create the post. Check your details and try again.')
+      setError('Could not save the post. Check your details and try again.')
     } finally {
       setIsSubmitting(false)
     }
@@ -128,7 +178,7 @@ export function CreatePost() {
 
   async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault()
-    await submitPost(isDraft)
+    await submitPost(false)
   }
 
   async function requestSuggestion(task: WritingTask) {
@@ -169,11 +219,18 @@ export function CreatePost() {
     <Box component="main" sx={{ maxWidth: 760, mx: 'auto', p: { xs: 2, sm: 4 } }}>
       <Stack spacing={3} component="form" ref={formRef} onSubmit={handleSubmit}>
         <Box>
-          <Typography component="h1" variant="h4">Create a post</Typography>
-          <Typography color="text.secondary">Share something worth remembering.</Typography>
+          <Typography component="h1" variant="h4">{draftId ? 'Edit draft' : 'Create a post'}</Typography>
+          <Typography color="text.secondary">
+            {draftId ? 'Continue writing, save your changes, or publish when ready.' : 'Share something worth remembering.'}
+          </Typography>
         </Box>
 
-        {error && <Alert severity="error">{error}</Alert>}
+        {(error || isInvalidDraftId) && (
+          <Alert severity="error">{error || 'This draft could not be loaded.'}</Alert>
+        )}
+        {draftId && !isDraft && !error && !isInvalidDraftId && (
+          <Alert severity="info">Loading draft...</Alert>
+        )}
         <Alert severity="info">
           AI requests send your title and content to Google Gemini. With unpaid Gemini API quota,
           Google may use prompts and responses to improve products and may have human reviewers
@@ -188,6 +245,7 @@ export function CreatePost() {
             onChange={(event) => setTitle(event.target.value)}
             required
             fullWidth
+            disabled={Boolean(draftId) && !isDraft}
             slotProps={{ htmlInput: { maxLength: 200 } }}
           />
           <Button
@@ -207,6 +265,7 @@ export function CreatePost() {
             fullWidth
             multiline
             minRows={8}
+            disabled={Boolean(draftId) && !isDraft}
             slotProps={{ htmlInput: { maxLength: 5000 } }}
           />
           <Button
@@ -226,6 +285,7 @@ export function CreatePost() {
             fullWidth
             multiline
             minRows={2}
+            disabled={Boolean(draftId) && !isDraft}
             slotProps={{ htmlInput: { maxLength: 250 } }}
           />
           <Button
@@ -240,7 +300,7 @@ export function CreatePost() {
 
         <FormControl fullWidth>
           <InputLabel id="post-category-label">Category</InputLabel>
-          <Select labelId="post-category-label" label="Category" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+          <Select labelId="post-category-label" label="Category" value={categoryId} onChange={(event) => setCategoryId(event.target.value)} disabled={Boolean(draftId) && !isDraft}>
             <MenuItem value="">No category</MenuItem>
             {categories.map((category) => <MenuItem key={category.id} value={category.id}>{category.name}</MenuItem>)}
           </Select>
@@ -248,7 +308,7 @@ export function CreatePost() {
 
         <FormControl fullWidth>
           <InputLabel id="post-visibility-label">Visibility</InputLabel>
-          <Select labelId="post-visibility-label" label="Visibility" value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)}>
+          <Select labelId="post-visibility-label" label="Visibility" value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)} disabled={Boolean(draftId) && !isDraft}>
             <MenuItem value="public">Public</MenuItem>
             <MenuItem value="followers">Followers</MenuItem>
             <MenuItem value="private">Private</MenuItem>
@@ -258,7 +318,7 @@ export function CreatePost() {
         <Stack spacing={2}>
           <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6">Images (optional)</Typography>
-            <Button component="label" startIcon={<AddPhotoAlternateOutlinedIcon />} disabled={isUploadingImages || imageUrls.length >= MAX_IMAGE_COUNT}>
+            <Button component="label" startIcon={<AddPhotoAlternateOutlinedIcon />} disabled={isUploadingImages || imageUrls.length >= MAX_IMAGE_COUNT || (Boolean(draftId) && !isDraft)}>
               {isUploadingImages ? 'Uploading images...' : `Upload images (${imageUrls.length}/${MAX_IMAGE_COUNT})`}
               <input hidden type="file" accept="image/*" multiple onChange={handleImageSelection} />
             </Button>
@@ -273,11 +333,21 @@ export function CreatePost() {
         </Stack>
 
         <Stack direction="row" spacing={2} sx={{ justifyContent: 'flex-end' }}>
-          <Button type="button" startIcon={<SaveOutlinedIcon />} onClick={handleSaveDraft} disabled={isSubmitting || isUploadingImages}>
+          <Button
+            type="button"
+            startIcon={<SaveOutlinedIcon />}
+            onClick={handleSaveDraft}
+            disabled={isSubmitting || isUploadingImages || (Boolean(draftId) && !isDraft)}
+          >
             Save draft
           </Button>
-          <Button type="submit" variant="contained" startIcon={<PublishOutlinedIcon />} disabled={isSubmitting || isUploadingImages}>
-            {isSubmitting ? 'Saving...' : isDraft ? 'Save draft' : 'Publish post'}
+          <Button
+            type="submit"
+            variant="contained"
+            startIcon={<PublishOutlinedIcon />}
+            disabled={isSubmitting || isUploadingImages || (Boolean(draftId) && !isDraft)}
+          >
+            {isSubmitting ? 'Saving...' : isDraft ? 'Publish draft' : 'Publish post'}
           </Button>
         </Stack>
       </Stack>
