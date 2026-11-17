@@ -8,8 +8,10 @@ import './App.css'
 import { Home } from './components/Home'
 import { NotificationsPage } from './components/NotificationsPage'
 import { PlaceholderPage } from './components/PlaceholderPage'
+import { PostDetailPage } from './components/PostDetailPage'
 import { ProfilePage } from './components/ProfilePage'
 import { RequireAuth } from './components/RequireAuth'
+import { SearchPage } from './components/SearchPage'
 import { TopBar } from './components/TopBar'
 import { UserProfilePage } from './components/UserProfilePage'
 
@@ -28,6 +30,8 @@ function App() {
         <Route path="/feed/:category" element={<CategoryFeed />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/profile/:section" element={<ProfilePage />} />
+        <Route path="/search" element={<SearchPage />} />
+        <Route path="/posts/:postId" element={<PostDetailPage />} />
         <Route path="/users/:userId" element={<UserProfilePage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />

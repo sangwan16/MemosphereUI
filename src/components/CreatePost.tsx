@@ -6,6 +6,10 @@ import {
   Alert,
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControl,
   InputLabel,
   MenuItem,
@@ -16,7 +20,15 @@ import {
 } from '@mui/material'
 import { useEffect, useRef, useState, type ChangeEvent, type SyntheticEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createPost, listCategories, uploadPostImage, type Category, type CreatePostPayload } from '../api/posts'
+import {
+  createPost,
+  generateWritingSuggestion,
+  listCategories,
+  uploadPostImage,
+  type Category,
+  type CreatePostPayload,
+  type WritingTask,
+} from '../api/posts'
 
 type Visibility = CreatePostPayload['visibility']
 const MAX_IMAGE_COUNT = 10
@@ -34,6 +46,10 @@ export function CreatePost() {
   const [isDraft] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isUploadingImages, setIsUploadingImages] = useState(false)
+  const [generatingTask, setGeneratingTask] = useState<WritingTask | null>(null)
+  const [suggestionTask, setSuggestionTask] = useState<WritingTask | null>(null)
+  const [suggestion, setSuggestion] = useState('')
+  const [suggestionDialogOpen, setSuggestionDialogOpen] = useState(false)
   const [error, setError] = useState('')
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -115,6 +131,36 @@ export function CreatePost() {
     await submitPost(isDraft)
   }
 
+  async function requestSuggestion(task: WritingTask) {
+    setError('')
+    setGeneratingTask(task)
+    try {
+      const result = await generateWritingSuggestion({ task, title, content })
+      setSuggestionTask(result.task)
+      setSuggestion(result.suggestion)
+      setSuggestionDialogOpen(true)
+    } catch {
+      setError('Could not generate a writing suggestion. Please try again.')
+    } finally {
+      setGeneratingTask(null)
+    }
+  }
+
+  function applySuggestion() {
+    if (suggestionTask === 'polish_content') setContent(suggestion)
+    if (suggestionTask === 'suggest_title') setTitle(suggestion)
+    if (suggestionTask === 'suggest_excerpt') setExcerpt(suggestion)
+    setSuggestionDialogOpen(false)
+    setSuggestionTask(null)
+    setSuggestion('')
+  }
+
+  function dismissSuggestion() {
+    setSuggestionDialogOpen(false)
+    setSuggestionTask(null)
+    setSuggestion('')
+  }
+
   function handleSaveDraft() {
     if (formRef.current?.reportValidity()) void submitPost(true)
   }
@@ -128,10 +174,68 @@ export function CreatePost() {
         </Box>
 
         {error && <Alert severity="error">{error}</Alert>}
+        <Alert severity="info">
+          AI requests send your title and content to OpenAI, which may retain API content in
+          abuse-monitoring logs for up to 30 days. Suggestions are only added to your post if you
+          choose to use them.
+        </Alert>
 
-        <TextField label="Title" value={title} onChange={(event) => setTitle(event.target.value)} required fullWidth />
-        <TextField label="Content" value={content} onChange={(event) => setContent(event.target.value)} required fullWidth multiline minRows={8} />
-        <TextField label="Excerpt (optional)" value={excerpt} onChange={(event) => setExcerpt(event.target.value)} fullWidth multiline minRows={2} slotProps={{ htmlInput: { maxLength: 250 } }} />
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { sm: 'flex-start' } }}>
+          <TextField
+            label="Title"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            required
+            fullWidth
+            slotProps={{ htmlInput: { maxLength: 200 } }}
+          />
+          <Button
+            type="button"
+            onClick={() => void requestSuggestion('suggest_title')}
+            disabled={!content.trim() || generatingTask !== null || isSubmitting}
+          >
+            {generatingTask === 'suggest_title' ? 'Suggesting...' : 'Suggest title'}
+          </Button>
+        </Stack>
+        <Stack spacing={1}>
+          <TextField
+            label="Content"
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            required
+            fullWidth
+            multiline
+            minRows={8}
+            slotProps={{ htmlInput: { maxLength: 5000 } }}
+          />
+          <Button
+            type="button"
+            sx={{ alignSelf: 'flex-start' }}
+            onClick={() => void requestSuggestion('polish_content')}
+            disabled={!content.trim() || generatingTask !== null || isSubmitting}
+          >
+            {generatingTask === 'polish_content' ? 'Improving...' : 'Improve writing'}
+          </Button>
+        </Stack>
+        <Stack spacing={1}>
+          <TextField
+            label="Excerpt (optional)"
+            value={excerpt}
+            onChange={(event) => setExcerpt(event.target.value)}
+            fullWidth
+            multiline
+            minRows={2}
+            slotProps={{ htmlInput: { maxLength: 250 } }}
+          />
+          <Button
+            type="button"
+            sx={{ alignSelf: 'flex-start' }}
+            onClick={() => void requestSuggestion('suggest_excerpt')}
+            disabled={!content.trim() || generatingTask !== null || isSubmitting}
+          >
+            {generatingTask === 'suggest_excerpt' ? 'Generating...' : 'Generate excerpt'}
+          </Button>
+        </Stack>
 
         <FormControl fullWidth>
           <InputLabel id="post-category-label">Category</InputLabel>
@@ -176,6 +280,28 @@ export function CreatePost() {
           </Button>
         </Stack>
       </Stack>
+      <Dialog
+        open={suggestionDialogOpen}
+        onClose={dismissSuggestion}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Writing suggestion</DialogTitle>
+        <DialogContent dividers>
+          <TextField
+            label="Suggestion"
+            value={suggestion}
+            fullWidth
+            multiline
+            minRows={4}
+            slotProps={{ htmlInput: { readOnly: true } }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={dismissSuggestion}>Keep my draft</Button>
+          <Button variant="contained" onClick={applySuggestion}>Use suggestion</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

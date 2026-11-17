@@ -3,6 +3,7 @@ import HomeIcon from '@mui/icons-material/Home'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone'
 import PersonIcon from '@mui/icons-material/Person'
+import SearchIcon from '@mui/icons-material/Search'
 import { AppBar, Badge, Box, Button, IconButton, Toolbar, Tooltip } from '@mui/material'
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -54,6 +55,12 @@ export function TopBar() {
           <Tooltip title="Home">
             <IconButton aria-label="Home" color="inherit" onClick={() => navigate('/home')}>
               <HomeIcon />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="Search">
+            <IconButton aria-label="Search users and posts" color="inherit" onClick={() => navigate('/search')}>
+              <SearchIcon />
             </IconButton>
           </Tooltip>
 

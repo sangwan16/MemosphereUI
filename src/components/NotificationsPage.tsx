@@ -1,13 +1,19 @@
 import { Alert, Box, Button, Card, CardContent, CircularProgress, Stack, Typography } from '@mui/material'
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { listNotifications, respondToFollowRequest, type NotificationItem } from '../api/posts'
+import { Link, useNavigate } from 'react-router-dom'
+import {
+	listNotifications,
+	markNotificationRead,
+	respondToFollowRequest,
+	type NotificationItem,
+} from '../api/posts'
 
 function formatNotificationDate(value: string) {
 	return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 
 export function NotificationsPage() {
+	const navigate = useNavigate()
 	const [notifications, setNotifications] = useState<NotificationItem[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [loadError, setLoadError] = useState(false)
@@ -50,6 +56,23 @@ export function NotificationsPage() {
 		} finally {
 			setActiveRequestId(null)
 		}
+	}
+
+	async function openSharedPost(notification: NotificationItem) {
+		if (notification.reference_id === null) return
+		if (!notification.is_read) {
+			try {
+				const updatedNotification = await markNotificationRead(notification.id)
+				setNotifications((current) => current.map((item) =>
+					item.id === updatedNotification.id ? updatedNotification : item,
+				))
+				window.dispatchEvent(new Event('notifications-updated'))
+			} catch {
+				setActionError('The notification could not be marked as read.')
+				return
+			}
+		}
+		navigate(`/posts/${notification.reference_id}`)
 	}
 
 	return (
@@ -95,6 +118,14 @@ export function NotificationsPage() {
 											Decline
 										</Button>
 									</Stack>
+								)}
+								{notification.type === 'share' && notification.reference_id !== null && (
+									<Button
+										size="small"
+										onClick={() => void openSharedPost(notification)}
+									>
+										Open shared post
+									</Button>
 								)}
 							</Stack>
 						</CardContent>

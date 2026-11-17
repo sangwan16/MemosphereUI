@@ -1,10 +1,11 @@
 import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined'
 import { Alert, Box, Button, CircularProgress, Stack, Typography } from '@mui/material'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { getCurrentUser } from '../api/auth'
 import { listCategories, listPosts, type Category, type Post } from '../api/posts'
 import { PostCard } from './Allposts'
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
 
 export function CategoryFeed() {
 	const { category: categorySlug } = useParams()
@@ -12,8 +13,12 @@ export function CategoryFeed() {
 	const [posts, setPosts] = useState<Post[]>([])
 	const [currentUserId, setCurrentUserId] = useState<number | null>(null)
 	const [isLoading, setIsLoading] = useState(true)
+	const [isLoadingMore, setIsLoadingMore] = useState(false)
 	const [error, setError] = useState(false)
+	const [loadMoreError, setLoadMoreError] = useState(false)
+	const [nextCursor, setNextCursor] = useState<string | null>(null)
 	const [reloadKey, setReloadKey] = useState(0)
+	const isLoadingMoreRef = useRef(false)
 
 	useEffect(() => {
 		let isActive = true
@@ -25,19 +30,24 @@ export function CategoryFeed() {
 		setIsLoading(true)
 		setError(false)
 
-		Promise.all([listCategories(), listPosts()])
-			.then(([categories, allPosts]) => {
+		listCategories()
+			.then((categories) => {
 				if (!isActive) return
 				const selectedCategory = categories.find((item) => item.slug === categorySlug)
 				if (!selectedCategory) {
 					setCategory(null)
 					setPosts([])
 					setError(true)
-					return
+					return null
 				}
 
 				setCategory(selectedCategory)
-				setPosts(allPosts.filter((post) => post.category_id === selectedCategory.id))
+				return listPosts({ categoryId: selectedCategory.id })
+			})
+			.then((page) => {
+				if (!isActive || !page) return
+				setPosts(page.posts)
+				setNextCursor(page.next_cursor)
 			})
 			.catch(() => {
 				if (isActive) setError(true)
@@ -50,6 +60,32 @@ export function CategoryFeed() {
 			isActive = false
 		}
 	}, [categorySlug, reloadKey])
+
+	async function loadMorePosts() {
+		if (!nextCursor || isLoadingMoreRef.current || !category) return
+
+		isLoadingMoreRef.current = true
+		setIsLoadingMore(true)
+		setLoadMoreError(false)
+		try {
+			const page = await listPosts({ categoryId: category.id, cursor: nextCursor })
+			setPosts((currentPosts) => {
+				const existingIds = new Set(currentPosts.map((post) => post.id))
+				return [...currentPosts, ...page.posts.filter((post) => !existingIds.has(post.id))]
+			})
+			setNextCursor(page.next_cursor)
+		} catch {
+			setLoadMoreError(true)
+		} finally {
+			isLoadingMoreRef.current = false
+			setIsLoadingMore(false)
+		}
+	}
+
+	const sentinelRef = useInfiniteScroll(
+		loadMorePosts,
+		Boolean(nextCursor) && !isLoadingMore && !loadMoreError && Boolean(category),
+	)
 
 	if (isLoading) {
 		return <Box sx={{ display: 'grid', placeItems: 'center', py: 8 }}><CircularProgress aria-label="Loading category feed" /></Box>
@@ -75,6 +111,15 @@ export function CategoryFeed() {
 					<Typography>No posts in this category yet.</Typography>
 				</Stack>
 			) : posts.map((post) => <PostCard key={post.id} post={post} canEdit={post.author_id === currentUserId} />)}
+			{loadMoreError && <Alert severity="error">More posts could not be loaded.</Alert>}
+			{nextCursor && (
+				<>
+					<Button variant="outlined" onClick={loadMorePosts} disabled={isLoadingMore}>
+						{isLoadingMore ? <CircularProgress size={20} aria-label="Loading more posts" /> : loadMoreError ? 'Retry' : 'Load more'}
+					</Button>
+					<Box ref={sentinelRef} aria-hidden="true" sx={{ height: 1 }} />
+				</>
+			)}
 		</Stack>
 	)
 }
