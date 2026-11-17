@@ -7,6 +7,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined'
 import SendIcon from '@mui/icons-material/Send'
+import ShareOutlinedIcon from '@mui/icons-material/ShareOutlined'
 import {
 	Alert,
 	Avatar,
@@ -14,12 +15,15 @@ import {
 	Button,
 	Card,
 	CardContent,
+	Checkbox,
 	Collapse,
 	CircularProgress,
 	Dialog,
 	DialogActions,
 	DialogContent,
 	DialogTitle,
+	FormControlLabel,
+	FormGroup,
 	IconButton,
 	Stack,
 	TextField,
@@ -27,10 +31,22 @@ import {
 	Typography,
 	useMediaQuery,
 } from '@mui/material'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { getCurrentUser } from '../api/auth'
-import { createPostComment, listPostComments, listPosts, updatePost, uploadPostImage, type Post, type PostComment } from '../api/posts'
+import {
+	createPostComment,
+	listMyFollowers,
+	listPostComments,
+	listPosts,
+	sharePost,
+	updatePost,
+	uploadPostImage,
+	type Post,
+	type PostComment,
+	type ProfileUser,
+} from '../api/posts'
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
 
 const MAX_POST_IMAGE_COUNT = 10
 const MAX_POST_IMAGE_SIZE_BYTES = 10 * 1024 * 1024
@@ -70,6 +86,15 @@ export function PostCard({ post, canEdit = false }: { post: Post; canEdit?: bool
 	const [commentText, setCommentText] = useState('')
 	const [isSubmittingComment, setIsSubmittingComment] = useState(false)
 	const [commentSubmitError, setCommentSubmitError] = useState(false)
+	const [isShareOpen, setIsShareOpen] = useState(false)
+	const [followers, setFollowers] = useState<ProfileUser[]>([])
+	const [followersLoaded, setFollowersLoaded] = useState(false)
+	const [selectedFollowerIds, setSelectedFollowerIds] = useState<number[]>([])
+	const [isLoadingFollowers, setIsLoadingFollowers] = useState(false)
+	const [isSharing, setIsSharing] = useState(false)
+	const [shareError, setShareError] = useState('')
+	const [shareSuccess, setShareSuccess] = useState('')
+	const [shareSelectionError, setShareSelectionError] = useState('')
 
 	useEffect(() => {
 		if (!commentsOpen || commentsLoaded) return
@@ -111,6 +136,60 @@ export function PostCard({ post, canEdit = false }: { post: Post; canEdit?: bool
 			setCommentSubmitError(true)
 		} finally {
 			setIsSubmittingComment(false)
+		}
+	}
+
+	async function openShareDialog() {
+		setIsShareOpen(true)
+		setSelectedFollowerIds([])
+		setShareSelectionError('')
+		setShareError('')
+		setShareSuccess('')
+		if (isLoadingFollowers) return
+
+		setFollowers([])
+		setFollowersLoaded(false)
+		setIsLoadingFollowers(true)
+		try {
+			setFollowers(await listMyFollowers())
+			setFollowersLoaded(true)
+		} catch {
+			setShareError('Your followers could not be loaded. Please try again.')
+		} finally {
+			setIsLoadingFollowers(false)
+		}
+	}
+
+	function toggleFollowerSelection(followerId: number) {
+		if (selectedFollowerIds.includes(followerId)) {
+			setSelectedFollowerIds((currentIds) => currentIds.filter((id) => id !== followerId))
+			setShareSelectionError('')
+			return
+		}
+		if (selectedFollowerIds.length >= 50) {
+			setShareSelectionError('You can share with up to 50 followers at a time.')
+			return
+		}
+		setSelectedFollowerIds((currentIds) =>
+			currentIds.includes(followerId) ? currentIds : [...currentIds, followerId],
+		)
+		setShareSelectionError('')
+	}
+
+	async function handleShareSubmit(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault()
+		if (isSharing || selectedFollowerIds.length === 0) return
+
+		setIsSharing(true)
+		setShareError('')
+		try {
+			const sharedCount = await sharePost(post.id, selectedFollowerIds)
+			setShareSuccess(`Shared with ${sharedCount} follower${sharedCount === 1 ? '' : 's'}.`)
+			setIsShareOpen(false)
+		} catch {
+			setShareError('The post could not be shared. Please check the selected followers and try again.')
+		} finally {
+			setIsSharing(false)
 		}
 	}
 
@@ -348,6 +427,14 @@ export function PostCard({ post, canEdit = false }: { post: Post; canEdit?: bool
 					>
 						{commentsOpen ? 'Hide comments' : 'Comments'}
 					</Button>
+					<Button
+						startIcon={<ShareOutlinedIcon />}
+						onClick={() => void openShareDialog()}
+						sx={{ alignSelf: 'flex-start', textTransform: 'none' }}
+					>
+						Share
+					</Button>
+					{shareSuccess && <Alert severity="success">{shareSuccess}</Alert>}
 
 					<Collapse in={commentsOpen} unmountOnExit sx={{ width: '100%' }}>
 						<Stack spacing={2}>
@@ -473,6 +560,72 @@ export function PostCard({ post, canEdit = false }: { post: Post; canEdit?: bool
 					</DialogActions>
 				</Box>
 			</Dialog>
+			<Dialog
+				open={isShareOpen}
+				onClose={() => !isSharing && setIsShareOpen(false)}
+				fullWidth
+				maxWidth="xs"
+			>
+				<Box component="form" onSubmit={handleShareSubmit}>
+					<DialogTitle>Share post</DialogTitle>
+					<DialogContent>
+						<Stack spacing={2} sx={{ pt: 1 }}>
+							<Typography color="text.secondary" variant="body2">
+								Choose followers to notify. Sharing does not change who can view the post.
+							</Typography>
+							<Typography color="text.secondary" variant="caption">
+								Select up to 50 followers.
+							</Typography>
+							{shareError && (
+								<Alert
+									severity="error"
+									action={
+										!followersLoaded && (
+											<Button color="inherit" size="small" onClick={() => void openShareDialog()}>
+												Retry
+											</Button>
+										)
+									}
+								>
+									{shareError}
+								</Alert>
+							)}
+							{shareSelectionError && <Alert severity="warning">{shareSelectionError}</Alert>}
+							{isLoadingFollowers && <CircularProgress size={22} aria-label="Loading followers" />}
+							{!isLoadingFollowers && followersLoaded && followers.length === 0 && (
+								<Typography color="text.secondary">You don’t have any followers to share with yet.</Typography>
+							)}
+							{!isLoadingFollowers && followers.length > 0 && (
+								<FormGroup sx={{ maxHeight: 320, overflowY: 'auto' }}>
+									{followers.map((follower) => (
+										<FormControlLabel
+											key={follower.id}
+											control={
+												<Checkbox
+													checked={selectedFollowerIds.includes(follower.id)}
+													onChange={() => toggleFollowerSelection(follower.id)}
+													disabled={isSharing}
+												/>
+											}
+											label={follower.username || `Member #${follower.id}`}
+										/>
+									))}
+								</FormGroup>
+							)}
+						</Stack>
+					</DialogContent>
+					<DialogActions sx={{ px: 3, pb: 2 }}>
+						<Button onClick={() => setIsShareOpen(false)} disabled={isSharing}>Cancel</Button>
+						<Button
+							type="submit"
+							variant="contained"
+							disabled={isSharing || isLoadingFollowers || selectedFollowerIds.length === 0}
+						>
+							{isSharing ? 'Sharing...' : 'Share with selected'}
+						</Button>
+					</DialogActions>
+				</Box>
+			</Dialog>
 		</Card>
 	)
 }
@@ -481,8 +634,12 @@ export function Allposts() {
 	const [posts, setPosts] = useState<Post[]>([])
 	const [currentUserId, setCurrentUserId] = useState<number | null>(null)
 	const [isLoading, setIsLoading] = useState(true)
+	const [isLoadingMore, setIsLoadingMore] = useState(false)
 	const [error, setError] = useState(false)
+	const [loadMoreError, setLoadMoreError] = useState(false)
+	const [nextCursor, setNextCursor] = useState<string | null>(null)
 	const [reloadKey, setReloadKey] = useState(0)
+	const isLoadingMoreRef = useRef(false)
 
 	useEffect(() => {
 		let isActive = true
@@ -495,8 +652,10 @@ export function Allposts() {
 		setIsLoading(true)
 		setError(false)
 		listPosts()
-			.then((loadedPosts) => {
-				if (isActive) setPosts(loadedPosts)
+			.then((page) => {
+				if (!isActive) return
+				setPosts(page.posts)
+				setNextCursor(page.next_cursor)
 			})
 			.catch(() => {
 				if (isActive) setError(true)
@@ -509,6 +668,32 @@ export function Allposts() {
 			isActive = false
 		}
 	}, [reloadKey])
+
+	async function loadMorePosts() {
+		if (!nextCursor || isLoadingMoreRef.current) return
+
+		isLoadingMoreRef.current = true
+		setIsLoadingMore(true)
+		setLoadMoreError(false)
+		try {
+			const page = await listPosts({ cursor: nextCursor })
+			setPosts((currentPosts) => {
+				const existingIds = new Set(currentPosts.map((post) => post.id))
+				return [...currentPosts, ...page.posts.filter((post) => !existingIds.has(post.id))]
+			})
+			setNextCursor(page.next_cursor)
+		} catch {
+			setLoadMoreError(true)
+		} finally {
+			isLoadingMoreRef.current = false
+			setIsLoadingMore(false)
+		}
+	}
+
+	const sentinelRef = useInfiniteScroll(
+		loadMorePosts,
+		Boolean(nextCursor) && !isLoadingMore && !loadMoreError,
+	)
 
 	if (isLoading) {
 		return (
@@ -545,6 +730,15 @@ export function Allposts() {
 	return (
 		<Stack component="section" aria-label="Posts" spacing={2.5} sx={{ width: '100%', maxWidth: 960, mx: 'auto', px: { xs: 1.5, sm: 2 }, py: { xs: 2, sm: 3 } }}>
 			{posts.map((post) => <PostCard key={post.id} post={post} canEdit={post.author_id === currentUserId} />)}
+			{loadMoreError && <Alert severity="error">More posts could not be loaded.</Alert>}
+			{nextCursor && (
+				<>
+					<Button variant="outlined" onClick={loadMorePosts} disabled={isLoadingMore}>
+						{isLoadingMore ? <CircularProgress size={20} aria-label="Loading more posts" /> : loadMoreError ? 'Retry' : 'Load more'}
+					</Button>
+					<Box ref={sentinelRef} aria-hidden="true" sx={{ height: 1 }} />
+				</>
+			)}
 		</Stack>
 	)
 }

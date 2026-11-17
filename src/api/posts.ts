@@ -18,6 +18,22 @@ export type CreatePostPayload = {
   is_draft: boolean
 }
 
+export type WritingTask = 'polish_content' | 'suggest_title' | 'suggest_excerpt'
+
+export type WritingSuggestion = {
+  task: WritingTask
+  suggestion: string
+}
+
+export async function generateWritingSuggestion(payload: {
+  task: WritingTask
+  title: string
+  content: string
+}): Promise<WritingSuggestion> {
+  const response = await api.post<WritingSuggestion>('/ai/writing-assistant', payload)
+  return response.data
+}
+
 export type Post = {
   id: number
   title: string
@@ -33,6 +49,30 @@ export type Post = {
   author_email: string | null
   author_username: string | null
 }
+
+export type PostPage = {
+  posts: Post[]
+  next_cursor: string | null
+}
+
+export type SearchUserResult = {
+  id: number
+  username: string
+}
+
+export type SearchPostResult = Omit<Post, 'author_email'>
+
+export type SearchResultsPage<T> = {
+  items: T[]
+  next_cursor: string | null
+}
+
+export type SearchResponse = {
+  users: SearchResultsPage<SearchUserResult> | null
+  posts: SearchResultsPage<SearchPostResult> | null
+}
+
+export type SearchSection = 'users' | 'posts'
 
 export type PostComment = {
   id: number
@@ -95,8 +135,40 @@ export async function listCategories(): Promise<Category[]> {
   return response.data
 }
 
-export async function listPosts(): Promise<Post[]> {
-  const response = await api.get<Post[]>('/posts')
+export async function listPosts(options: {
+  cursor?: string | null
+  categoryId?: number
+} = {}): Promise<PostPage> {
+  const response = await api.get<PostPage>('/posts', {
+    params: {
+      cursor: options.cursor ?? undefined,
+      category_id: options.categoryId,
+    },
+  })
+  return response.data
+}
+
+export async function getPost(postId: number): Promise<Post> {
+  const response = await api.get<Post>(`/posts/${postId}`)
+  return response.data
+}
+
+export async function searchGlobal(
+  query: string,
+  options: {
+    section?: SearchSection
+    cursor?: string | null
+    signal?: AbortSignal
+  } = {},
+): Promise<SearchResponse> {
+  const response = await api.get<SearchResponse>('/search', {
+    params: {
+      q: query,
+      section: options.section,
+      cursor: options.cursor ?? undefined,
+    },
+    signal: options.signal,
+  })
   return response.data
 }
 
@@ -161,6 +233,13 @@ export async function unfollowUser(userId: number): Promise<void> {
   await api.delete(`/social/follow/${userId}`)
 }
 
+export async function sharePost(postId: number, recipientIds: number[]): Promise<number> {
+  const response = await api.post<{ shared_count: number }>(`/posts/${postId}/share`, {
+    recipient_ids: recipientIds,
+  })
+  return response.data.shared_count
+}
+
 export type NotificationItem = {
   id: number
   user_id: number
@@ -170,6 +249,11 @@ export type NotificationItem = {
   message: string
   is_read: boolean
   created_at: string
+}
+
+export async function markNotificationRead(notificationId: number): Promise<NotificationItem> {
+  const response = await api.patch<NotificationItem>(`/notifications/${notificationId}/read`)
+  return response.data
 }
 
 export async function listNotifications(): Promise<NotificationItem[]> {
